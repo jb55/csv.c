@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "repo": "https://github.com/jb55/csv.c",
   "description": "csv parser",
-  "keywords": ["csv"]
-
+  "keywords": ["csv"],
+  "src": ["csv.c", "csv.h"]
 }
 
