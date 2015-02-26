@@ -42,7 +42,7 @@ fail_writer (char * test_name, char * message)
 }
 
 void
-cb1 (void *data, size_t len, void *t)
+cb1 (void *data, size_t len, void *t, int is_last)
 {
   char * test_name = t;
 

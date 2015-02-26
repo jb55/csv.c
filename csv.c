@@ -44,14 +44,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define MEM_BLK_SIZE 128
 
-#define SUBMIT_FIELD(p) \
+#define SUBMIT_FIELD(p, is_last)                        \
   do { \
    if (!quoted) \
      entry_pos -= spaces; \
    if (p->options & CSV_APPEND_NULL) \
      ((p)->entry_buf[entry_pos]) = '\0'; \
    if (cb1) \
-     cb1(p->entry_buf, entry_pos, data); \
+     cb1(p->entry_buf, entry_pos, data, is_last);       \
    pstate = FIELD_NOT_BEGUN; \
    entry_pos = quoted = spaces = 0; \
  } while (0)
@@ -154,7 +154,7 @@ csv_free(struct csv_parser *p)
 }
 
 int
-csv_fini(struct csv_parser *p, void (*cb1)(void *, size_t, void *), void (*cb2)(int c, void *), void *data)
+csv_fini(struct csv_parser *p, void (*cb1)(void *, size_t, void *, int), void (*cb2)(int c, void *), void *data)
 {
   /* Finalize parsing.  Needed, for example, when file does not end in a newline */
   int quoted = p->quoted;
@@ -180,7 +180,7 @@ csv_fini(struct csv_parser *p, void (*cb1)(void *, size_t, void *), void (*cb2)(
     case FIELD_BEGUN:
       quoted = p->quoted, pstate = p->pstate;
       spaces = p->spaces, entry_pos = p->entry_pos;
-      SUBMIT_FIELD(p);
+      SUBMIT_FIELD(p, 1);
       SUBMIT_ROW(p, -1);
     case ROW_NOT_BEGUN: /* Already ended properly */
       ;
@@ -300,7 +300,7 @@ csv_increase_buffer(struct csv_parser *p)
 }
  
 size_t
-csv_parse(struct csv_parser *p, const void *s, size_t len, void (*cb1)(void *, size_t, void *), void (*cb2)(int c, void *), void *data)
+csv_parse(struct csv_parser *p, const void *s, size_t len, void (*cb1)(void *, size_t, void *, int), void (*cb2)(int c, void *), void *data)
 {
   unsigned const char *us = s;  /* Access input data as array of unsigned char */
   unsigned char c;              /* The character we are currently processing */
@@ -343,7 +343,7 @@ csv_parse(struct csv_parser *p, const void *s, size_t len, void (*cb1)(void *, s
           continue;
         } else if (is_term ? is_term(c) : c == CSV_CR || c == CSV_LF) { /* Carriage Return or Line Feed */
           if (pstate == FIELD_NOT_BEGUN) {
-            SUBMIT_FIELD(p);
+            SUBMIT_FIELD(p, 1);
             SUBMIT_ROW(p, (unsigned char)c); 
           } else {  /* ROW_NOT_BEGUN */
             /* Don't submit empty rows by default */
@@ -353,7 +353,7 @@ csv_parse(struct csv_parser *p, const void *s, size_t len, void (*cb1)(void *, s
           }
           continue;
         } else if (c == delim) { /* Comma */
-          SUBMIT_FIELD(p);
+          SUBMIT_FIELD(p, 0);
           break;
         } else if (c == quote) { /* Quote */
           pstate = FIELD_BEGUN;
@@ -383,11 +383,11 @@ csv_parse(struct csv_parser *p, const void *s, size_t len, void (*cb1)(void *, s
           if (quoted) {
             SUBMIT_CHAR(p, c);
           } else {
-            SUBMIT_FIELD(p);
+            SUBMIT_FIELD(p, 0);
           }
         } else if (is_term ? is_term(c) : c == CSV_CR || c == CSV_LF) {  /* Carriage Return or Line Feed */
           if (!quoted) {
-            SUBMIT_FIELD(p);
+            SUBMIT_FIELD(p, 1);
             SUBMIT_ROW(p, (unsigned char)c);
           } else {
             SUBMIT_CHAR(p, c);
@@ -404,10 +404,10 @@ csv_parse(struct csv_parser *p, const void *s, size_t len, void (*cb1)(void *, s
         /* This only happens when a quote character is encountered in a quoted field */
         if (c == delim) {  /* Comma */
           entry_pos -= spaces + 1;  /* get rid of spaces and original quote */
-          SUBMIT_FIELD(p);
+          SUBMIT_FIELD(p, 0);
         } else if (is_term ? is_term(c) : c == CSV_CR || c == CSV_LF) {  /* Carriage Return or Line Feed */
           entry_pos -= spaces + 1;  /* get rid of spaces and original quote */
-          SUBMIT_FIELD(p);
+          SUBMIT_FIELD(p, 1);
           SUBMIT_ROW(p, (unsigned char)c);
         } else if (is_space ? is_space(c) : c == CSV_SPACE || c == CSV_TAB) {  /* Space or Tab */
           SUBMIT_CHAR(p, c);
